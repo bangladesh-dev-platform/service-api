@@ -22,6 +22,9 @@ Multi-source video catalog + engagement APIs that power the StreamVibe (service-
 | DELETE | `/api/v1/video/bookmarks/{videoId}` | Remove bookmark | Yes |
 | GET | `/api/v1/video/history` | List watch history | Yes |
 | POST | `/api/v1/video/history` | Record playback (`video_id`, `position_seconds`, `context`) | Yes |
+| GET | `/api/v1/video/{id}/comments` | Paginated comments for a video | No |
+| POST | `/api/v1/video/{id}/comments` | Add a comment/reply (`text`, optional `parent_id`) | Yes |
+| DELETE | `/api/v1/video/comments/{commentId}` | Remove own comment (admin can remove any) | Yes |
 
 > Authenticated endpoints require a standard Banglade.sh access token. Upload/admin operations are guarded by the `admin` role (creator roles coming soon).
 
@@ -58,6 +61,8 @@ curl -X POST http://localhost:8080/api/v1/video/history \
 - `video_categories` + `video_category_assignments` – localized taxonomy.
 - `user_video_bookmarks` – per-user watchlist entries.
 - `user_video_history` – resume state + watch counts.
+- `video_comments` – threaded comments per video with soft-delete + like counters.
+- `video_comment_likes` – (future) per-user reactions.
 
 See `src/Infrastructure/Database/Migrations/006_create_video_portal_schema.sql` for full DDL.
 

@@ -81,21 +81,21 @@ class PgUserRepository implements UserRepository
                 phone = :phone,
                 avatar_url = :avatar_url,
                 email_verified = :email_verified,
-                is_active = :is_active
+                is_active = :is_active,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = :id
             RETURNING *
         ";
 
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([
-            'id' => $user->getId(),
-            'first_name' => $user->getFirstName(),
-            'last_name' => $user->getLastName(),
-            'phone' => $user->getPhone(),
-            'avatar_url' => $user->getAvatarUrl(),
-            'email_verified' => $user->isEmailVerified(),
-            'is_active' => $user->isActive(),
-        ]);
+        $stmt->bindValue('id', $user->getId());
+        $stmt->bindValue('first_name', $user->getFirstName());
+        $stmt->bindValue('last_name', $user->getLastName());
+        $stmt->bindValue('phone', $user->getPhone());
+        $stmt->bindValue('avatar_url', $user->getAvatarUrl());
+        $stmt->bindValue('email_verified', $user->isEmailVerified(), PDO::PARAM_BOOL);
+        $stmt->bindValue('is_active', $user->isActive(), PDO::PARAM_BOOL);
+        $stmt->execute();
 
         $row = $stmt->fetch();
         if (!$row) {

@@ -1,298 +1,97 @@
-# Bangladesh Auth API
+# Bangladesh API Platform
 
-Centralized authentication REST API for Bangladesh CMS micro-apps ecosystem.
+Multi-service PHP/Slim API that powers Banglade.sh micro-apps. The platform shares a central auth domain (users, tokens, roles) and introduces dedicated PostgreSQL schemas for each vertical (e.g., `video_portal`).
 
-**Domain:** `api.banglade.sh`
+## Modules
 
-## Features
+| Module | Description | Documentation |
+| --- | --- | --- |
+| Auth Service | Centralized SSO (registration, login, refresh, profile, roles) | [`docs/auth-service.md`](docs/auth-service.md) |
+| Video Portal | Video catalog + bookmarks/history backing StreamVibe | [`docs/video-portal.md`](docs/video-portal.md) |
 
-- ✅ JWT-based authentication with access and refresh tokens
-- ✅ User registration and login
-- ✅ Refresh token rotation + logout endpoint
-- ✅ Password reset flow (forgot/reset)
-- ✅ Email verification links + resend flow
-- ✅ Authenticated change-password endpoint
-- ✅ Role-based access control (RBAC)
-- ✅ SMTP email for password reset links
-- ✅ Fine-grained permissions system
-- ✅ Password strength validation
-- ✅ PostgreSQL database with UUID primary keys
-- ✅ RESTful API design with standardized responses
-- ✅ CORS support for micro-app integration
+More micro-apps (posts, files, commerce, etc.) will follow the same pattern—each with its own schema, repositories, and controller surface.
 
-## Tech Stack
-
-- **Framework**: PHP Slim 4
-- **Database**: PostgreSQL
-- **Authentication**: JWT (firebase/php-jwt)
-- **Dependency Injection**: PHP-DI
-- **Validation**: Respect/Validation
-
-## Installation
+## Quick Start
 
 ### Prerequisites
 
-- PHP 8.1 or higher
-- PostgreSQL 13 or higher
+- PHP 8.1+
+- PostgreSQL 13+
 - Composer
 
-### Setup
+### Install & Configure
 
-1. **Clone the repository**
 ```bash
-git clone <repository-url>
-cd auth.banglade.sh
-```
-
-2. **Install dependencies**
-```bash
+git clone <repo>
+cd service-api
 composer install
+cp .env.example .env    # edit DB + mail + CORS values
 ```
 
-3. **Configure environment**
-```bash
-cp .env.example .env
-# Edit .env with your database credentials and settings
-```
+### Database & Migrations
 
-4. **Create database**
-```bash
-psql -U postgres
-CREATE DATABASE cms_db;
-CREATE USER cms_user WITH PASSWORD 'secure_password';
-GRANT ALL PRIVILEGES ON DATABASE cms_db TO cms_user;
-```
-
-5. **Run migrations**
 ```bash
 php migrate.php migrate
 ```
 
-6. **Start development server**
+The migration runner seeds the shared `public` tables (users, refresh tokens, etc.) plus the `video_portal` schema introduced in `006_create_video_portal_schema.sql`.
+
+### Run Locally
+
 ```bash
 php -S localhost:8080 -t public
 ```
 
-The API will be available at `http://localhost:8080`
+The API is now available at `http://localhost:8080`.
 
-## API Endpoints
+## Response Envelope
 
-### Authentication
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/api/v1/auth/register` | Register new user | No |
-| POST | `/api/v1/auth/login` | Login user | No |
-| POST | `/api/v1/auth/refresh` | Refresh access/refresh token pair | No (uses refresh token) |
-| POST | `/api/v1/auth/logout` | Revoke refresh token (logout) | No (uses refresh token) |
-| POST | `/api/v1/auth/forgot-password` | Generate password reset token | No |
-| POST | `/api/v1/auth/reset-password` | Reset password with token | No |
-| POST | `/api/v1/auth/resend-verification` | Resend email verification link | Yes |
-| POST | `/api/v1/auth/change-password` | Change password (requires current password) | Yes |
-| POST | `/api/v1/auth/verify-email` | Verify email via token | No (uses verification token) |
-
-### Users
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/api/v1/users/me` | Get current user | Yes |
-| PUT | `/api/v1/users/me` | Update current user | Yes |
-| GET | `/api/v1/users` | List all users | Yes (admin) |
-| GET | `/api/v1/users/{id}` | Get user by ID | Yes (admin) |
-
-> Admin-only routes require a JWT where `roles` contains `admin`. Other authenticated users can still access `/users/me` and `/users/me` updates.
-
-### Health Check
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/health` | API health status | No |
-
-## Usage Examples
-
-### Register User
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "SecurePass123",
-    "first_name": "John",
-    "last_name": "Doe"
-  }'
-```
-
-### Login
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "SecurePass123"
-  }'
-```
-
-### Refresh Tokens
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/refresh \
-  -H "Content-Type: application/json" \
-  -d '{
-    "refresh_token": "<refresh_token>"
-  }'
-```
-
-### Logout
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/logout \
-  -H "Content-Type: application/json" \
-  -d '{
-    "refresh_token": "<refresh_token>"
-  }'
-```
-
-### Forgot Password
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/forgot-password \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com"
-  }'
-```
-> In `APP_ENV=development` the API response also returns `reset_token` to simplify local testing. In higher environments only the email is sent.
-
-### Reset Password
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/reset-password \
-  -H "Content-Type: application/json" \
-  -d '{
-    "token": "<reset_token>",
-    "password": "NewSecurePass1",
-    "confirm_password": "NewSecurePass1"
-  }'
-```
-
-### Resend Verification Email
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/resend-verification \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <access_token>"
-```
-
-### Verify Email
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/verify-email \
-  -H "Content-Type: application/json" \
-  -d '{
-    "token": "<verification_token>"
-  }'
-```
-
-### Change Password
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/change-password \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <access_token>" \
-  -d '{
-    "current_password": "OldPass1",
-    "new_password": "NewSecurePass1",
-    "confirm_password": "NewSecurePass1"
-  }'
-```
-
-### Get Current User Profile
-```bash
-curl -X GET http://localhost:8080/api/v1/users/me \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-## Response Format
-
-### Success Response
 ```json
 {
   "success": true,
   "data": { ... },
   "meta": {
-    "timestamp": "2026-01-15T15:29:27+00:00"
+    "timestamp": "2026-01-29T12:00:00Z"
   }
 }
 ```
 
-### Error Response
-```json
-{
-  "success": false,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Error message",
-    "details": { ... }
-  },
-  "meta": {
-    "timestamp": "2026-01-15T15:29:27+00:00"
-  }
-}
-```
+Errors follow the same structure with `success: false` and an `error` object (`code`, `message`, optional `details`).
 
-## Project Structure
+## Project Layout
 
 ```
-auth.banglade.sh/
-├── public/
-│   └── index.php              # Application entry point
+service-api/
+├── public/                 # Slim entry point
 ├── src/
-│   ├── Application/           # Application layer (middleware, handlers)
-│   ├── Domain/                # Domain layer (business logic)
-│   ├── Infrastructure/        # Infrastructure layer (database, repositories)
-│   ├── Presentation/          # Presentation layer (controllers)
-│   └── Shared/                # Shared utilities
-├── config/                    # Configuration files
-├── migrate.php                # Migration CLI tool
-├── composer.json              # PHP dependencies
-└── .env                       # Environment configuration
+│   ├── Application/        # Middleware & use-cases
+│   ├── Domain/             # Entities + interfaces (Auth, Video, ...)
+│   ├── Infrastructure/     # Repositories, migrations, adapters
+│   ├── Presentation/       # Controllers per module
+│   └── Shared/             # Cross-cutting helpers
+├── docs/                   # Module-specific READMEs
+├── config/                 # app/jwt/mail configs
+├── migrate.php             # Migration runner
+└── README.md
 ```
 
-## Database Schema
+## Dedicated Schemas
 
-- **users** - User accounts (global table)
-- **user_roles** - User role assignments
-- **user_permissions** - Fine-grained permissions
-- **refresh_tokens** - JWT refresh tokens
-- **password_resets** - Password reset tokens
+- `public` – original auth tables (`users`, `user_roles`, `user_permissions`, `refresh_tokens`, `password_resets`).
+- `video_portal` – catalog + engagement tables for StreamVibe (`videos`, `video_assets`, `video_ingest_jobs`, `video_categories`, `user_video_bookmarks`, `user_video_history`).
 
-## Security Features
+Each future micro-app can add its own schema via a migration (e.g., `posts`, `files`), keeping concerns separate while reusing the shared auth domain.
 
-- Bcrypt password hashing (cost factor 12)
-- JWT with short-lived access tokens (15 minutes)
-- Refresh token rotation (7 days)
-- Password strength validation
-- CORS protection
-- UUID instead of auto-increment IDs
+## Security Highlights
 
-## Development
+- HTTPS + CORS enforcement (see `.env` `CORS_ALLOWED_ORIGINS`).
+- JWT validation middleware on protected routes.
+- Refresh token hashing + rotation, logout revocation.
+- Bcrypt password hashing (cost 12).
+- Role/permission middleware for admin/creator operations.
 
-### Running Tests
-```bash
-composer test
-```
+## Additional Docs
 
-### Static Analysis
-```bash
-composer analyze
-```
-
-## Micro-App Integration
-
-This auth service is designed to be used by multiple micro-apps. Other services should:
-
-1. Validate JWT tokens from this service
-2. Use the `/api/v1/users/{id}` endpoint to fetch user details
-3. Check user roles and permissions for authorization
-4. Share the same users database table
-
-## License 
-
-MIT
-
-## Support
-
-For issues and questions, please create an issue in the repository.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) – ERDs, flow diagrams, deployment topology.
+- [`docs/auth-service.md`](docs/auth-service.md) – detailed auth endpoints & samples.
+- [`docs/video-portal.md`](docs/video-portal.md) – catalog/bookmark/history APIs and schema notes.

@@ -205,6 +205,19 @@ This document provides a visual overview of the Bangladesh CMS architecture and 
    └────────────────────┘
 ```
 
+### Dedicated Schemas per Micro-App
+
+As new micro-apps come online, each owns a dedicated PostgreSQL schema so domain data stays isolated while identity remains centralized. The `video_portal` schema (added for the StreamVibe/video experience) is the first implementation and includes:
+
+- `video_portal.videos` – canonical metadata for every video regardless of origin (`source_type`, JSON tags/metadata, cached timestamps).
+- `video_portal.video_assets` – storage + transcoding records for first-party uploads.
+- `video_portal.video_ingest_jobs` – ingestion/transcode queue with retries and status auditing.
+- `video_portal.video_categories` and `video_category_assignments` – localized taxonomy for feeds/recommendations.
+- `video_portal.user_video_bookmarks` – user-level bookmarks with unique `(user_id, video_id)` constraint.
+- `video_portal.user_video_history` – resumable viewing history capturing watch counts, resume position, and arbitrary context JSON.
+
+Following the same template, future services (posts, files, commerce, etc.) can ship their own schemas via migrations without touching the shared `public` tables.
+
 ## JWT Token Structure
 
 ```

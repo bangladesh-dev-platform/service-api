@@ -5,18 +5,28 @@ declare(strict_types=1);
 use App\Application\Middleware\CorsMiddleware;
 use App\Application\Middleware\JwtAuthMiddleware;
 use App\Application\Middleware\RequireRoleMiddleware;
+use App\Application\Video\VideoCatalogService;
+use App\Application\Video\VideoEngagementService;
 use App\Domain\Auth\JwtService;
 use App\Domain\Auth\PasswordService;
 use App\Domain\Auth\RefreshTokenRepository;
 use App\Domain\Auth\PasswordResetRepository;
 use App\Domain\Notification\MailService;
 use App\Domain\User\UserRepository;
+use App\Domain\Video\VideoBookmarkRepository;
+use App\Domain\Video\VideoHistoryRepository;
+use App\Domain\Video\VideoRepository;
 use App\Infrastructure\Database\Connection;
 use App\Infrastructure\Repositories\PgUserRepository;
 use App\Infrastructure\Repositories\PgRefreshTokenRepository;
 use App\Infrastructure\Repositories\PgPasswordResetRepository;
+use App\Infrastructure\Repositories\Video\PgVideoBookmarkRepository;
+use App\Infrastructure\Repositories\Video\PgVideoHistoryRepository;
+use App\Infrastructure\Repositories\Video\PgVideoRepository;
 use App\Infrastructure\Mail\SmtpMailService;
 use App\Presentation\Controllers\AuthController;
+use App\Presentation\Controllers\VideoCatalogController;
+use App\Presentation\Controllers\VideoEngagementController;
 use App\Presentation\Controllers\UserController;
 use App\Shared\Response\JsonResponse;
 use DI\Container;
@@ -77,6 +87,30 @@ $container->set(PasswordResetRepository::class, function(ContainerInterface $c) 
     );
 });
 
+$container->set(VideoRepository::class, function(ContainerInterface $c) {
+    return new PgVideoRepository($c->get(PDO::class));
+});
+
+$container->set(VideoBookmarkRepository::class, function(ContainerInterface $c) {
+    return new PgVideoBookmarkRepository($c->get(PDO::class));
+});
+
+$container->set(VideoHistoryRepository::class, function(ContainerInterface $c) {
+    return new PgVideoHistoryRepository($c->get(PDO::class));
+});
+
+$container->set(VideoCatalogService::class, function(ContainerInterface $c) {
+    return new VideoCatalogService($c->get(VideoRepository::class));
+});
+
+$container->set(VideoEngagementService::class, function(ContainerInterface $c) {
+    return new VideoEngagementService(
+        $c->get(VideoRepository::class),
+        $c->get(VideoBookmarkRepository::class),
+        $c->get(VideoHistoryRepository::class)
+    );
+});
+
 $container->set(MailService::class, function(ContainerInterface $c) {
     return new SmtpMailService(
         $c->get('mail_config'),
@@ -101,6 +135,18 @@ $container->set(UserController::class, function(ContainerInterface $c) {
         $c->get(UserRepository::class),
         $c->get(JwtService::class),
         $c->get(MailService::class)
+    );
+});
+
+$container->set(VideoCatalogController::class, function(ContainerInterface $c) {
+    return new VideoCatalogController(
+        $c->get(VideoCatalogService::class)
+    );
+});
+
+$container->set(VideoEngagementController::class, function(ContainerInterface $c) {
+    return new VideoEngagementController(
+        $c->get(VideoEngagementService::class)
     );
 });
 
@@ -201,7 +247,27 @@ $app->group('/api/v1', function ($app) use ($container) {
         $app->get('/{id}', [UserController::class, 'getById'])
             ->add(new RequireRoleMiddleware(['admin']));
     })->add(new JwtAuthMiddleware($container->get(JwtService::class)));
-    
+
+    // Video catalog + engagement routes
+    $app->group('/video', function ($app) use ($container) {
+        $app->get('/feed', [VideoCatalogController::class, 'feed']);
+        $app->get('/search', [VideoCatalogController::class, 'search']);
+        $app->get('/{id}', [VideoCatalogController::class, 'show']);
+
+        $app->post('/catalog', [VideoCatalogController::class, 'upsert'])
+            ->add(new RequireRoleMiddleware(['admin']))
+            ->add(new JwtAuthMiddleware($container->get(JwtService::class)));
+
+        $app->group('', function ($app) use ($container) {
+            $app->get('/bookmarks', [VideoEngagementController::class, 'listBookmarks']);
+            $app->post('/bookmarks', [VideoEngagementController::class, 'createBookmark']);
+            $app->delete('/bookmarks/{videoId}', [VideoEngagementController::class, 'deleteBookmark']);
+
+            $app->get('/history', [VideoEngagementController::class, 'listHistory']);
+            $app->post('/history', [VideoEngagementController::class, 'recordHistory']);
+        })->add(new JwtAuthMiddleware($container->get(JwtService::class)));
+    });
+
 });
 
 // Health check

@@ -103,6 +103,7 @@ $container->set(UserController::class, function(ContainerInterface $c) {
 // Create Slim app
 $app = AppFactory::create();
 $app->addRoutingMiddleware();
+$app->addBodyParsingMiddleware();
 
 // Add global CORS middleware
 $app->add(new CorsMiddleware($appConfig['cors']));

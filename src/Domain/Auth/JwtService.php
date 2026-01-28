@@ -14,6 +14,7 @@ class JwtService
     private string $issuer;
     private int $accessTokenExpiry;
     private int $refreshTokenExpiry;
+    private int $emailVerificationExpiry;
 
     public function __construct(array $config)
     {
@@ -22,6 +23,7 @@ class JwtService
         $this->issuer = $config['issuer'];
         $this->accessTokenExpiry = $config['access_token_expiry'];
         $this->refreshTokenExpiry = $config['refresh_token_expiry'];
+        $this->emailVerificationExpiry = $config['email_verification_expiry'] ?? 86400;
     }
 
     /**
@@ -57,6 +59,21 @@ class JwtService
             'exp' => $now + $this->refreshTokenExpiry,
             'type' => 'refresh',
             'jti' => bin2hex(random_bytes(16))
+        ];
+
+        return JWT::encode($payload, $this->secret, $this->algorithm);
+    }
+
+    public function generateEmailVerificationToken(string $userId, string $email): string
+    {
+        $now = time();
+        $payload = [
+            'iss' => $this->issuer,
+            'sub' => $userId,
+            'email' => $email,
+            'iat' => $now,
+            'exp' => $now + $this->emailVerificationExpiry,
+            'type' => 'verify',
         ];
 
         return JWT::encode($payload, $this->secret, $this->algorithm);
@@ -111,5 +128,10 @@ class JwtService
     public function getRefreshTokenExpiry(): int
     {
         return $this->refreshTokenExpiry;
+    }
+
+    public function getEmailVerificationExpiry(): int
+    {
+        return $this->emailVerificationExpiry;
     }
 }

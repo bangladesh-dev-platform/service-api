@@ -90,11 +90,20 @@ class AuthController
 
         $createdUser = $this->userRepository->create($user);
 
+        $verificationSent = false;
+        try {
+            $this->sendVerificationEmail($createdUser);
+            $verificationSent = true;
+        } catch (\Throwable $e) {
+            // swallow to avoid blocking registration
+        }
+
         return JsonResponse::success(
             new Response(),
             [
                 'user' => $createdUser->toArray(),
-                'message' => 'Registration successful. Please verify your email.'
+                'message' => 'Registration successful. Please verify your email.',
+                'verification_email_sent' => $verificationSent,
             ],
             [],
             201
@@ -307,6 +316,146 @@ class AuthController
     }
 
     /**
+     * Resend email verification (auth required)
+     */
+    public function resendVerification(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $userId = $request->getAttribute('user_id');
+        if (!$userId) {
+            return JsonResponse::unauthorized(new Response());
+        }
+
+        $user = $this->userRepository->findById($userId);
+        if (!$user) {
+            return JsonResponse::unauthorized(new Response());
+        }
+
+        if ($user->isEmailVerified()) {
+            return JsonResponse::success(new Response(), [
+                'message' => 'Email already verified',
+            ]);
+        }
+
+        try {
+            $this->sendVerificationEmail($user);
+        } catch (\Throwable $e) {
+            return JsonResponse::error(
+                new Response(),
+                'MAIL_SEND_FAILED',
+                'Unable to send verification email',
+                null,
+                500
+            );
+        }
+
+        return JsonResponse::success(new Response(), [
+            'message' => 'Verification email sent successfully',
+        ]);
+    }
+
+    /**
+     * Verify email using token
+     */
+    public function verifyEmail(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $data = $request->getParsedBody() ?? [];
+        $token = $data['token'] ?? '';
+
+        if (empty($token)) {
+            return JsonResponse::validationError(new Response(), ['token' => 'Verification token is required']);
+        }
+
+        $decoded = $this->jwtService->validateToken($token);
+        if ($decoded === null || ($decoded->type ?? '') !== 'verify') {
+            return JsonResponse::unauthorized(new Response(), 'Invalid or expired verification token');
+        }
+
+        $user = $this->userRepository->findById($decoded->sub ?? '');
+        if (!$user) {
+            return JsonResponse::unauthorized(new Response(), 'User not found');
+        }
+
+        if (strcasecmp($user->getEmail(), $decoded->email ?? '') !== 0) {
+            return JsonResponse::unauthorized(new Response(), 'Token does not match this user');
+        }
+
+        if ($user->isEmailVerified()) {
+            return JsonResponse::success(new Response(), [
+                'message' => 'Email already verified',
+            ]);
+        }
+
+        $this->userRepository->markEmailVerified($user->getId());
+
+        return JsonResponse::success(new Response(), [
+            'message' => 'Email verified successfully',
+        ]);
+    }
+
+    /**
+     * Change password (auth required)
+     */
+    public function changePassword(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $userId = $request->getAttribute('user_id');
+        if (!$userId) {
+            return JsonResponse::unauthorized(new Response());
+        }
+
+        $data = $request->getParsedBody() ?? [];
+        $currentPassword = (string)($data['current_password'] ?? '');
+        $newPassword = (string)($data['new_password'] ?? '');
+        $confirmPassword = (string)($data['confirm_password'] ?? $newPassword);
+
+        $errors = [];
+        if (empty($currentPassword)) {
+            $errors['current_password'] = 'Current password is required';
+        }
+
+        if (empty($newPassword)) {
+            $errors['new_password'] = 'New password is required';
+        } else {
+            $passwordErrors = $this->passwordService->validateStrength($newPassword);
+            if (!empty($passwordErrors)) {
+                $errors['new_password'] = $passwordErrors;
+            }
+        }
+
+        if ($newPassword !== $confirmPassword) {
+            $errors['confirm_password'] = 'Passwords do not match';
+        }
+
+        if (!empty($errors)) {
+            return JsonResponse::validationError(new Response(), $errors);
+        }
+
+        $user = $this->userRepository->findById($userId);
+        if (!$user) {
+            return JsonResponse::unauthorized(new Response(), 'User not found');
+        }
+
+        if (!$this->passwordService->verify($currentPassword, $user->getPasswordHash())) {
+            return JsonResponse::validationError(new Response(), [
+                'current_password' => 'Current password is incorrect'
+            ]);
+        }
+
+        if ($currentPassword === $newPassword) {
+            return JsonResponse::validationError(new Response(), [
+                'new_password' => 'New password must be different from current password'
+            ]);
+        }
+
+        $hashed = $this->passwordService->hash($newPassword);
+        $this->userRepository->updatePassword($user->getId(), $hashed);
+        $this->refreshTokenRepository->revokeTokensForUser($user->getId());
+
+        return JsonResponse::success(new Response(), [
+            'message' => 'Password changed successfully'
+        ]);
+    }
+
+    /**
      * Complete password reset
      */
     public function resetPassword(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
@@ -384,5 +533,11 @@ class AuthController
     private function calculateExpiryDate(int $seconds): DateTimeImmutable
     {
         return (new DateTimeImmutable('now'))->modify(sprintf('+%d seconds', $seconds));
+    }
+
+    private function sendVerificationEmail(User $user): void
+    {
+        $token = $this->jwtService->generateEmailVerificationToken($user->getId(), $user->getEmail());
+        $this->mailService->sendEmailVerification($user->getEmail(), $token, $user->getFullName());
     }
 }

@@ -12,7 +12,7 @@ class SmtpMailService implements MailService
 {
     public function __construct(
         private array $config,
-        private string $appUrl
+        private string $portalUrl
     ) {
     }
 
@@ -24,15 +24,45 @@ class SmtpMailService implements MailService
         $mailer->isHTML(true);
         $mailer->Subject = 'Reset your Bangladesh Auth password';
 
-        $resetLink = $this->buildResetLink($token);
+        $resetLink = $this->buildPortalLink('reset-password.html', ['token' => $token]);
 
-        $mailer->Body = $this->buildHtmlBody($resetLink);
-        $mailer->AltBody = $this->buildTextBody($resetLink);
+        $mailer->Body = $this->buildHtmlBody(
+            'We received a request to reset your Bangladesh Auth password.',
+            'Click the button below to set a new password. This link will expire in 60 minutes.',
+            $resetLink,
+            'Reset Password'
+        );
+        $mailer->AltBody = $this->buildTextBody('Reset your password using the link below (valid for 60 minutes):', $resetLink);
 
         try {
             $mailer->send();
         } catch (MailException $e) {
             throw new \RuntimeException('Unable to send password reset email: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    public function sendEmailVerification(string $email, string $token, ?string $name = null): void
+    {
+        $mailer = $this->createMailer();
+
+        $mailer->addAddress($email, $name ?? '');
+        $mailer->isHTML(true);
+        $mailer->Subject = 'Verify your Bangladesh Auth email';
+
+        $verifyLink = $this->buildPortalLink('verify-email.html', ['token' => $token]);
+
+        $mailer->Body = $this->buildHtmlBody(
+            'Welcome to Bangladesh Digital Auth!',
+            'Please confirm your email address by clicking the button below. This link expires in 24 hours.',
+            $verifyLink,
+            'Verify Email'
+        );
+        $mailer->AltBody = $this->buildTextBody('Verify your email using the link below (valid for 24 hours):', $verifyLink);
+
+        try {
+            $mailer->send();
+        } catch (MailException $e) {
+            throw new \RuntimeException('Unable to send verification email: ' . $e->getMessage(), 0, $e);
         }
     }
 
@@ -62,23 +92,25 @@ class SmtpMailService implements MailService
         return $mail;
     }
 
-    private function buildResetLink(string $token): string
+    private function buildPortalLink(string $path, array $queryParams): string
     {
-        $base = rtrim($this->appUrl, '/');
-        return sprintf('%s/reset-password.html?token=%s', $base, urlencode($token));
+        $base = rtrim($this->portalUrl, '/');
+        $query = http_build_query($queryParams);
+        return sprintf('%s/%s?%s', $base, ltrim($path, '/'), $query);
     }
 
-    private function buildHtmlBody(string $resetLink): string
+    private function buildHtmlBody(string $headline, string $instructions, string $link, string $buttonText): string
     {
         return <<<HTML
-<p>We received a request to reset your Bangladesh Auth password.</p>
-<p><a href="{$resetLink}" target="_blank">Click here to reset your password</a>. This link will expire in 60 minutes.</p>
+<p>{$headline}</p>
+<p>{$instructions}</p>
+<p style="margin:24px 0;"><a href="{$link}" target="_blank" style="display:inline-block;padding:12px 20px;background:#2563EB;color:#fff;border-radius:6px;text-decoration:none;">{$buttonText}</a></p>
 <p>If you did not request this, you can safely ignore this email.</p>
 HTML;
     }
 
-    private function buildTextBody(string $resetLink): string
+    private function buildTextBody(string $intro, string $link): string
     {
-        return "Reset your Bangladesh Auth password using the link below (valid for 60 minutes):\n{$resetLink}\nIf you did not request this, ignore this email.";
+        return "{$intro}\n{$link}\nIf you did not request this, ignore this email.";
     }
 }

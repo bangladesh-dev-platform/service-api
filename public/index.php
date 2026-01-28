@@ -80,7 +80,7 @@ $container->set(PasswordResetRepository::class, function(ContainerInterface $c) 
 $container->set(MailService::class, function(ContainerInterface $c) {
     return new SmtpMailService(
         $c->get('mail_config'),
-        $c->get('app_config')['url'] ?? 'http://localhost:8080'
+        $c->get('app_config')['portal_url'] ?? $c->get('app_config')['url'] ?? 'http://localhost:8080'
     );
 });
 
@@ -176,6 +176,13 @@ $app->group('/api/v1', function ($app) use ($container) {
         $app->post('/logout', [AuthController::class, 'logout']);
         $app->post('/forgot-password', [AuthController::class, 'forgotPassword']);
         $app->post('/reset-password', [AuthController::class, 'resetPassword']);
+        $app->post('/verify-email', [AuthController::class, 'verifyEmail']);
+
+        $app->post('/change-password', [AuthController::class, 'changePassword'])
+            ->add(new JwtAuthMiddleware($container->get(JwtService::class)));
+
+        $app->post('/resend-verification', [AuthController::class, 'resendVerification'])
+            ->add(new JwtAuthMiddleware($container->get(JwtService::class)));
     });
 
     // User routes (auth required)

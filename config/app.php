@@ -4,6 +4,7 @@ return [
     'env' => $_ENV['APP_ENV'] ?? 'production',
     'debug' => filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN),
     'url' => $_ENV['APP_URL'] ?? 'http://localhost:8080',
+    'portal_url' => $_ENV['AUTH_PORTAL_URL'] ?? 'http://localhost:4173',
     
     'cors' => [
         'allowed_origins' => explode(',', $_ENV['CORS_ALLOWED_ORIGINS'] ?? '*'),

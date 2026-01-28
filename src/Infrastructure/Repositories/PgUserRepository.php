@@ -129,6 +129,13 @@ class PgUserRepository implements UserRepository
         ]);
     }
 
+    public function markEmailVerified(string $id): void
+    {
+        $sql = "UPDATE users SET email_verified = true, email_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute(['id' => $id]);
+    }
+
     public function findAll(int $limit = 20, int $offset = 0): array
     {
         $sql = "SELECT * FROM users ORDER BY created_at DESC LIMIT :limit OFFSET :offset";

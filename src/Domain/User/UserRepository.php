@@ -13,6 +13,7 @@ interface UserRepository
     public function delete(string $id): bool;
     public function updateLastLogin(string $id): void;
     public function updatePassword(string $id, string $passwordHash): void;
+    public function markEmailVerified(string $id): void;
     public function findAll(int $limit = 20, int $offset = 0): array;
     public function count(): int;
 }

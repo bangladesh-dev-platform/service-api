@@ -10,6 +10,8 @@ Centralized authentication REST API for Bangladesh CMS micro-apps ecosystem.
 - ✅ User registration and login
 - ✅ Refresh token rotation + logout endpoint
 - ✅ Password reset flow (forgot/reset)
+- ✅ Email verification links + resend flow
+- ✅ Authenticated change-password endpoint
 - ✅ Role-based access control (RBAC)
 - ✅ SMTP email for password reset links
 - ✅ Fine-grained permissions system
@@ -85,6 +87,9 @@ The API will be available at `http://localhost:8080`
 | POST | `/api/v1/auth/logout` | Revoke refresh token (logout) | No (uses refresh token) |
 | POST | `/api/v1/auth/forgot-password` | Generate password reset token | No |
 | POST | `/api/v1/auth/reset-password` | Reset password with token | No |
+| POST | `/api/v1/auth/resend-verification` | Resend email verification link | Yes |
+| POST | `/api/v1/auth/change-password` | Change password (requires current password) | Yes |
+| POST | `/api/v1/auth/verify-email` | Verify email via token | No (uses verification token) |
 
 ### Users
 
@@ -162,6 +167,34 @@ curl -X POST http://localhost:8080/api/v1/auth/reset-password \
   -d '{
     "token": "<reset_token>",
     "password": "NewSecurePass1",
+    "confirm_password": "NewSecurePass1"
+  }'
+```
+
+### Resend Verification Email
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/resend-verification \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### Verify Email
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/verify-email \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "<verification_token>"
+  }'
+```
+
+### Change Password
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/change-password \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{
+    "current_password": "OldPass1",
+    "new_password": "NewSecurePass1",
     "confirm_password": "NewSecurePass1"
   }'
 ```

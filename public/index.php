@@ -35,7 +35,6 @@ use Psr\Container\ContainerInterface;
 use Slim\Exception\HttpMethodNotAllowedException;
 use Slim\Exception\HttpNotFoundException;
 use Slim\Factory\AppFactory;
-use Throwable;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -252,7 +251,6 @@ $app->group('/api/v1', function ($app) use ($container) {
     $app->group('/video', function ($app) use ($container) {
         $app->get('/feed', [VideoCatalogController::class, 'feed']);
         $app->get('/search', [VideoCatalogController::class, 'search']);
-        $app->get('/{id}', [VideoCatalogController::class, 'show']);
 
         $app->post('/catalog', [VideoCatalogController::class, 'upsert'])
             ->add(new RequireRoleMiddleware(['admin']))
@@ -266,6 +264,8 @@ $app->group('/api/v1', function ($app) use ($container) {
             $app->get('/history', [VideoEngagementController::class, 'listHistory']);
             $app->post('/history', [VideoEngagementController::class, 'recordHistory']);
         })->add(new JwtAuthMiddleware($container->get(JwtService::class)));
+
+        $app->get('/{id}', [VideoCatalogController::class, 'show']);
     });
 
 });

@@ -1,40 +1,298 @@
-# Bangladesh Dev Platform - API Service
+# Bangladesh Auth API
 
-This repository houses the core API services for the Bangladesh Dev Platform. It provides the backend infrastructure for various micro-applications, offering authentication, user management, and other essential functionalities.
+Centralized authentication REST API for Bangladesh CMS micro-apps ecosystem.
 
-## Purpose
+**Domain:** `api.banglade.sh`
 
-The primary goal of this repository is to centralize and provide robust, scalable, and secure API endpoints for the broader Bangladesh Dev Platform ecosystem. It aims to offer a consistent interface for client applications while allowing flexibility in backend technology choices.
+## Features
 
-## Technology Overview
+- ✅ JWT-based authentication with access and refresh tokens
+- ✅ User registration and login
+- ✅ Refresh token rotation + logout endpoint
+- ✅ Password reset flow (forgot/reset)
+- ✅ Email verification links + resend flow
+- ✅ Authenticated change-password endpoint
+- ✅ Role-based access control (RBAC)
+- ✅ SMTP email for password reset links
+- ✅ Fine-grained permissions system
+- ✅ Password strength validation
+- ✅ PostgreSQL database with UUID primary keys
+- ✅ RESTful API design with standardized responses
+- ✅ CORS support for micro-app integration
 
-To support diverse development needs and facilitate experimentation, this repository currently hosts two distinct API implementations:
+## Tech Stack
 
-- **Node.js API (`api-node-dev` branch):** A modern, JavaScript/TypeScript-based API service.
-- **PHP API (`api-php-dev` branch):** A robust, PHP-based API service.
+- **Framework**: PHP Slim 4
+- **Database**: PostgreSQL
+- **Authentication**: JWT (firebase/php-jwt)
+- **Dependency Injection**: PHP-DI
+- **Validation**: Respect/Validation
 
-Both implementations aim to provide similar core functionalities, allowing for comparison, migration, or use in different contexts.
+## Installation
 
-## Repository Structure
+### Prerequisites
 
--   `main`: This branch is dedicated to high-level documentation, project overview, and general repository information. It *does not* contain any application code.
--   `api-node-dev/`: Contains the full source code and related assets for the Node.js API implementation.
--   `api-php-dev/`: Contains the full source code and related assets for the PHP API implementation.
+- PHP 8.1 or higher
+- PostgreSQL 13 or higher
+- Composer
 
-## Getting Started
+### Setup
 
-To explore or develop with either API:
+1. **Clone the repository**
+```bash
+git clone <repository-url>
+cd auth.banglade.sh
+```
 
-1.  **Clone this repository:**
-    ```bash
-    git clone git@github.com:bangladesh-dev-platform/service-api.git
-    cd service-api
-    ```
-2.  **Switch to your desired API branch:**
-    *   For the Node.js API: `git checkout api-node-dev`
-    *   For the PHP API: `git checkout api-php-dev`
-3.  Refer to the `README.md` file *within that specific branch* for detailed setup, installation, configuration, and usage instructions.
+2. **Install dependencies**
+```bash
+composer install
+```
 
-## Contributing
+3. **Configure environment**
+```bash
+cp .env.example .env
+# Edit .env with your database credentials and settings
+```
 
-We welcome contributions! Please refer to the specific branch's `README.md` and any `CONTRIBUTING.md` files (if present) for guidelines on how to contribute to that particular API implementation.
+4. **Create database**
+```bash
+psql -U postgres
+CREATE DATABASE cms_db;
+CREATE USER cms_user WITH PASSWORD 'secure_password';
+GRANT ALL PRIVILEGES ON DATABASE cms_db TO cms_user;
+```
+
+5. **Run migrations**
+```bash
+php migrate.php migrate
+```
+
+6. **Start development server**
+```bash
+php -S localhost:8080 -t public
+```
+
+The API will be available at `http://localhost:8080`
+
+## API Endpoints
+
+### Authentication
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/v1/auth/register` | Register new user | No |
+| POST | `/api/v1/auth/login` | Login user | No |
+| POST | `/api/v1/auth/refresh` | Refresh access/refresh token pair | No (uses refresh token) |
+| POST | `/api/v1/auth/logout` | Revoke refresh token (logout) | No (uses refresh token) |
+| POST | `/api/v1/auth/forgot-password` | Generate password reset token | No |
+| POST | `/api/v1/auth/reset-password` | Reset password with token | No |
+| POST | `/api/v1/auth/resend-verification` | Resend email verification link | Yes |
+| POST | `/api/v1/auth/change-password` | Change password (requires current password) | Yes |
+| POST | `/api/v1/auth/verify-email` | Verify email via token | No (uses verification token) |
+
+### Users
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/v1/users/me` | Get current user | Yes |
+| PUT | `/api/v1/users/me` | Update current user | Yes |
+| GET | `/api/v1/users` | List all users | Yes (admin) |
+| GET | `/api/v1/users/{id}` | Get user by ID | Yes (admin) |
+
+> Admin-only routes require a JWT where `roles` contains `admin`. Other authenticated users can still access `/users/me` and `/users/me` updates.
+
+### Health Check
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/health` | API health status | No |
+
+## Usage Examples
+
+### Register User
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePass123",
+    "first_name": "John",
+    "last_name": "Doe"
+  }'
+```
+
+### Login
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePass123"
+  }'
+```
+
+### Refresh Tokens
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refresh_token": "<refresh_token>"
+  }'
+```
+
+### Logout
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/logout \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refresh_token": "<refresh_token>"
+  }'
+```
+
+### Forgot Password
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com"
+  }'
+```
+> In `APP_ENV=development` the API response also returns `reset_token` to simplify local testing. In higher environments only the email is sent.
+
+### Reset Password
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "<reset_token>",
+    "password": "NewSecurePass1",
+    "confirm_password": "NewSecurePass1"
+  }'
+```
+
+### Resend Verification Email
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/resend-verification \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### Verify Email
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/verify-email \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "<verification_token>"
+  }'
+```
+
+### Change Password
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/change-password \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{
+    "current_password": "OldPass1",
+    "new_password": "NewSecurePass1",
+    "confirm_password": "NewSecurePass1"
+  }'
+```
+
+### Get Current User Profile
+```bash
+curl -X GET http://localhost:8080/api/v1/users/me \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Response Format
+
+### Success Response
+```json
+{
+  "success": true,
+  "data": { ... },
+  "meta": {
+    "timestamp": "2026-01-15T15:29:27+00:00"
+  }
+}
+```
+
+### Error Response
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Error message",
+    "details": { ... }
+  },
+  "meta": {
+    "timestamp": "2026-01-15T15:29:27+00:00"
+  }
+}
+```
+
+## Project Structure
+
+```
+auth.banglade.sh/
+├── public/
+│   └── index.php              # Application entry point
+├── src/
+│   ├── Application/           # Application layer (middleware, handlers)
+│   ├── Domain/                # Domain layer (business logic)
+│   ├── Infrastructure/        # Infrastructure layer (database, repositories)
+│   ├── Presentation/          # Presentation layer (controllers)
+│   └── Shared/                # Shared utilities
+├── config/                    # Configuration files
+├── migrate.php                # Migration CLI tool
+├── composer.json              # PHP dependencies
+└── .env                       # Environment configuration
+```
+
+## Database Schema
+
+- **users** - User accounts (global table)
+- **user_roles** - User role assignments
+- **user_permissions** - Fine-grained permissions
+- **refresh_tokens** - JWT refresh tokens
+- **password_resets** - Password reset tokens
+
+## Security Features
+
+- Bcrypt password hashing (cost factor 12)
+- JWT with short-lived access tokens (15 minutes)
+- Refresh token rotation (7 days)
+- Password strength validation
+- CORS protection
+- UUID instead of auto-increment IDs
+
+## Development
+
+### Running Tests
+```bash
+composer test
+```
+
+### Static Analysis
+```bash
+composer analyze
+```
+
+## Micro-App Integration
+
+This auth service is designed to be used by multiple micro-apps. Other services should:
+
+1. Validate JWT tokens from this service
+2. Use the `/api/v1/users/{id}` endpoint to fetch user details
+3. Check user roles and permissions for authorization
+4. Share the same users database table
+
+## License 
+
+MIT
+
+## Support
+
+For issues and questions, please create an issue in the repository.

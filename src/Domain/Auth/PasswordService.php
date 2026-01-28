@@ -19,8 +19,8 @@ class PasswordService
     public function hash(string $password): string
     {
         $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => $this->cost]);
-        
-        if ($hash === false) {
+
+        if (!is_string($hash)) {
             throw new \RuntimeException('Failed to hash password');
         }
 

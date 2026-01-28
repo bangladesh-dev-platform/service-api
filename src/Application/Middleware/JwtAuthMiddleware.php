@@ -60,11 +60,18 @@ class JwtAuthMiddleware implements MiddlewareInterface
             );
         }
 
+        if (!isset($decoded->sub)) {
+            return JsonResponse::unauthorized(
+                new Response(),
+                'Invalid token payload'
+            );
+        }
+
         // Add user info to request attributes
         $request = $request->withAttribute('user_id', $decoded->sub);
         $request = $request->withAttribute('user_email', $decoded->email ?? null);
-        $request = $request->withAttribute('user_roles', $decoded->roles ?? []);
-        $request = $request->withAttribute('user_permissions', $decoded->permissions ?? []);
+        $request = $request->withAttribute('user_roles', isset($decoded->roles) ? (array)$decoded->roles : []);
+        $request = $request->withAttribute('user_permissions', isset($decoded->permissions) ? (array)$decoded->permissions : []);
 
         return $handler->handle($request);
     }

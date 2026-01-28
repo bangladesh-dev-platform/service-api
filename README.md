@@ -8,6 +8,8 @@ Centralized authentication REST API for Bangladesh CMS micro-apps ecosystem.
 
 - ✅ JWT-based authentication with access and refresh tokens
 - ✅ User registration and login
+- ✅ Refresh token rotation + logout endpoint
+- ✅ Password reset flow (forgot/reset)
 - ✅ Role-based access control (RBAC)
 - ✅ Fine-grained permissions system
 - ✅ Password strength validation
@@ -78,6 +80,10 @@ The API will be available at `http://localhost:8080`
 |--------|----------|-------------|------|
 | POST | `/api/v1/auth/register` | Register new user | No |
 | POST | `/api/v1/auth/login` | Login user | No |
+| POST | `/api/v1/auth/refresh` | Refresh access/refresh token pair | No (uses refresh token) |
+| POST | `/api/v1/auth/logout` | Revoke refresh token (logout) | No (uses refresh token) |
+| POST | `/api/v1/auth/forgot-password` | Generate password reset token | No |
+| POST | `/api/v1/auth/reset-password` | Reset password with token | No |
 
 ### Users
 
@@ -85,8 +91,10 @@ The API will be available at `http://localhost:8080`
 |--------|----------|-------------|------|
 | GET | `/api/v1/users/me` | Get current user | Yes |
 | PUT | `/api/v1/users/me` | Update current user | Yes |
-| GET | `/api/v1/users` | List all users | Yes |
-| GET | `/api/v1/users/{id}` | Get user by ID | Yes |
+| GET | `/api/v1/users` | List all users | Yes (admin) |
+| GET | `/api/v1/users/{id}` | Get user by ID | Yes (admin) |
+
+> Admin-only routes require a JWT where `roles` contains `admin`. Other authenticated users can still access `/users/me` and `/users/me` updates.
 
 ### Health Check
 
@@ -115,6 +123,45 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
   -d '{
     "email": "user@example.com",
     "password": "SecurePass123"
+  }'
+```
+
+### Refresh Tokens
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refresh_token": "<refresh_token>"
+  }'
+```
+
+### Logout
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/logout \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refresh_token": "<refresh_token>"
+  }'
+```
+
+### Forgot Password
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com"
+  }'
+```
+> For now the API returns the `reset_token` directly (to simplify development). In production you would send this token via email/SMS instead.
+
+### Reset Password
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "<reset_token>",
+    "password": "NewSecurePass1",
+    "confirm_password": "NewSecurePass1"
   }'
 ```
 

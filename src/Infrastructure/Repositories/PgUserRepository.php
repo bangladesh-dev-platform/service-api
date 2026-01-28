@@ -119,6 +119,16 @@ class PgUserRepository implements UserRepository
         $stmt->execute(['id' => $id]);
     }
 
+    public function updatePassword(string $id, string $passwordHash): void
+    {
+        $sql = "UPDATE users SET password_hash = :password_hash, updated_at = CURRENT_TIMESTAMP WHERE id = :id";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            'id' => $id,
+            'password_hash' => $passwordHash,
+        ]);
+    }
+
     public function findAll(int $limit = 20, int $offset = 0): array
     {
         $sql = "SELECT * FROM users ORDER BY created_at DESC LIMIT :limit OFFSET :offset";

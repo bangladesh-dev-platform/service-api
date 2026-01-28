@@ -11,6 +11,7 @@ Centralized authentication REST API for Bangladesh CMS micro-apps ecosystem.
 - ✅ Refresh token rotation + logout endpoint
 - ✅ Password reset flow (forgot/reset)
 - ✅ Role-based access control (RBAC)
+- ✅ SMTP email for password reset links
 - ✅ Fine-grained permissions system
 - ✅ Password strength validation
 - ✅ PostgreSQL database with UUID primary keys
@@ -152,7 +153,7 @@ curl -X POST http://localhost:8080/api/v1/auth/forgot-password \
     "email": "user@example.com"
   }'
 ```
-> For now the API returns the `reset_token` directly (to simplify development). In production you would send this token via email/SMS instead.
+> In `APP_ENV=development` the API response also returns `reset_token` to simplify local testing. In higher environments only the email is sent.
 
 ### Reset Password
 ```bash

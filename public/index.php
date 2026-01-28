@@ -9,11 +9,13 @@ use App\Domain\Auth\JwtService;
 use App\Domain\Auth\PasswordService;
 use App\Domain\Auth\RefreshTokenRepository;
 use App\Domain\Auth\PasswordResetRepository;
+use App\Domain\Notification\MailService;
 use App\Domain\User\UserRepository;
 use App\Infrastructure\Database\Connection;
 use App\Infrastructure\Repositories\PgUserRepository;
 use App\Infrastructure\Repositories\PgRefreshTokenRepository;
 use App\Infrastructure\Repositories\PgPasswordResetRepository;
+use App\Infrastructure\Mail\SmtpMailService;
 use App\Presentation\Controllers\AuthController;
 use App\Presentation\Controllers\UserController;
 use App\Shared\Response\JsonResponse;
@@ -34,6 +36,7 @@ $dotenv->load();
 // Load configurations
 $jwtConfig = require __DIR__ . '/../config/jwt.php';
 $appConfig = require __DIR__ . '/../config/app.php';
+$mailConfig = require __DIR__ . '/../config/mail.php';
 
 // Create container
 $container = new Container();
@@ -42,6 +45,7 @@ AppFactory::setContainer($container);
 // Register services in container
 $container->set('jwt_config', $jwtConfig);
 $container->set('app_config', $appConfig);
+$container->set('mail_config', $mailConfig);
 
 $container->set(PDO::class, function() {
     return Connection::getInstance();
@@ -73,13 +77,22 @@ $container->set(PasswordResetRepository::class, function(ContainerInterface $c) 
     );
 });
 
+$container->set(MailService::class, function(ContainerInterface $c) {
+    return new SmtpMailService(
+        $c->get('mail_config'),
+        $c->get('app_config')['url'] ?? 'http://localhost:8080'
+    );
+});
+
 $container->set(AuthController::class, function(ContainerInterface $c) {
     return new AuthController(
         $c->get(UserRepository::class),
         $c->get(JwtService::class),
         $c->get(PasswordService::class),
         $c->get(RefreshTokenRepository::class),
-        $c->get(PasswordResetRepository::class)
+        $c->get(PasswordResetRepository::class),
+        $c->get(MailService::class),
+        $c->get('app_config')
     );
 });
 

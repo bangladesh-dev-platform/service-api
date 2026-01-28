@@ -8,6 +8,7 @@ use App\Domain\Auth\JwtService;
 use App\Domain\Auth\PasswordService;
 use App\Domain\Auth\RefreshTokenRepository;
 use App\Domain\Auth\PasswordResetRepository;
+use App\Domain\Notification\MailService;
 use App\Domain\User\User;
 use App\Domain\User\UserRepository;
 use App\Shared\Response\JsonResponse;
@@ -23,20 +24,26 @@ class AuthController
     private PasswordService $passwordService;
     private RefreshTokenRepository $refreshTokenRepository;
     private PasswordResetRepository $passwordResetRepository;
+    private MailService $mailService;
     private int $passwordResetExpirySeconds = 3600; // 1 hour
+    private bool $exposeResetToken;
 
     public function __construct(
         UserRepository $userRepository,
         JwtService $jwtService,
         PasswordService $passwordService,
         RefreshTokenRepository $refreshTokenRepository,
-        PasswordResetRepository $passwordResetRepository
+        PasswordResetRepository $passwordResetRepository,
+        MailService $mailService,
+        array $appConfig
     ) {
         $this->userRepository = $userRepository;
         $this->jwtService = $jwtService;
         $this->passwordService = $passwordService;
         $this->refreshTokenRepository = $refreshTokenRepository;
         $this->passwordResetRepository = $passwordResetRepository;
+        $this->mailService = $mailService;
+        $this->exposeResetToken = ($appConfig['env'] ?? 'production') !== 'production';
     }
 
     /**
@@ -275,11 +282,28 @@ class AuthController
 
         $this->passwordResetRepository->cleanupExpiredTokens();
 
-        return JsonResponse::success(new Response(), [
-            'message' => 'Password reset token generated.',
-            'reset_token' => $token,
-            'expires_in' => $this->passwordResetExpirySeconds
-        ]);
+        try {
+            $this->mailService->sendPasswordReset($user->getEmail(), $token, $user->getFullName());
+        } catch (\Throwable $e) {
+            return JsonResponse::error(
+                new Response(),
+                'MAIL_SEND_FAILED',
+                'Unable to send password reset email',
+                null,
+                500
+            );
+        }
+
+        $payload = [
+            'message' => 'Password reset instructions sent to your email.',
+        ];
+
+        if ($this->exposeResetToken) {
+            $payload['reset_token'] = $token;
+            $payload['expires_in'] = $this->passwordResetExpirySeconds;
+        }
+
+        return JsonResponse::success(new Response(), $payload);
     }
 
     /**

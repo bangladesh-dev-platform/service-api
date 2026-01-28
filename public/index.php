@@ -97,7 +97,11 @@ $container->set(AuthController::class, function(ContainerInterface $c) {
 });
 
 $container->set(UserController::class, function(ContainerInterface $c) {
-    return new UserController($c->get(UserRepository::class));
+    return new UserController(
+        $c->get(UserRepository::class),
+        $c->get(JwtService::class),
+        $c->get(MailService::class)
+    );
 });
 
 // Create Slim app

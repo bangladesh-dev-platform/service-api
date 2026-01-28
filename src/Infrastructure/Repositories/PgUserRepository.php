@@ -76,11 +76,13 @@ class PgUserRepository implements UserRepository
     {
         $sql = "
             UPDATE users 
-            SET first_name = :first_name,
+            SET email = :email,
+                first_name = :first_name,
                 last_name = :last_name,
                 phone = :phone,
                 avatar_url = :avatar_url,
                 email_verified = :email_verified,
+                email_verified_at = :email_verified_at,
                 is_active = :is_active,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = :id
@@ -89,11 +91,13 @@ class PgUserRepository implements UserRepository
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue('id', $user->getId());
+        $stmt->bindValue('email', $user->getEmail());
         $stmt->bindValue('first_name', $user->getFirstName());
         $stmt->bindValue('last_name', $user->getLastName());
         $stmt->bindValue('phone', $user->getPhone());
         $stmt->bindValue('avatar_url', $user->getAvatarUrl());
         $stmt->bindValue('email_verified', $user->isEmailVerified(), PDO::PARAM_BOOL);
+        $stmt->bindValue('email_verified_at', $user->getEmailVerifiedAt());
         $stmt->bindValue('is_active', $user->isActive(), PDO::PARAM_BOOL);
         $stmt->execute();
 

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Presentation\Controllers;
 
+use App\Domain\Auth\JwtService;
+use App\Domain\Notification\MailService;
 use App\Domain\User\UserRepository;
+use App\Domain\User\User;
 use App\Shared\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -13,10 +16,14 @@ use Slim\Psr7\Response;
 class UserController
 {
     private UserRepository $userRepository;
+    private JwtService $jwtService;
+    private MailService $mailService;
 
-    public function __construct(UserRepository $userRepository)
+    public function __construct(UserRepository $userRepository, JwtService $jwtService, MailService $mailService)
     {
         $this->userRepository = $userRepository;
+        $this->jwtService = $jwtService;
+        $this->mailService = $mailService;
     }
 
     /**
@@ -47,17 +54,36 @@ class UserController
             return JsonResponse::notFound(new Response(), 'User not found');
         }
 
-        // Create updated user (immutable update)
-        $updatedUser = new \App\Domain\User\User(
-            email: $user->getEmail(),
+        $newEmail = isset($data['email']) ? trim((string)$data['email']) : $user->getEmail();
+        $emailChanged = strcasecmp($newEmail, (string)$user->getEmail()) !== 0;
+
+        $validationErrors = [];
+
+        if ($emailChanged) {
+            if (empty($newEmail) || !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
+                $validationErrors['email'] = 'Valid email is required';
+            } else {
+                $existing = $this->userRepository->findByEmail($newEmail);
+                if ($existing && $existing->getId() !== $user->getId()) {
+                    $validationErrors['email'] = 'This email is already in use';
+                }
+            }
+        }
+
+        if (!empty($validationErrors)) {
+            return JsonResponse::validationError(new Response(), $validationErrors);
+        }
+
+        $updatedUser = new User(
+            email: $emailChanged ? $newEmail : $user->getEmail(),
             passwordHash: $user->getPasswordHash(),
             id: $user->getId(),
             firstName: $data['first_name'] ?? $user->getFirstName(),
             lastName: $data['last_name'] ?? $user->getLastName(),
             phone: $data['phone'] ?? $user->getPhone(),
             avatarUrl: $data['avatar_url'] ?? $user->getAvatarUrl(),
-            emailVerified: $user->isEmailVerified(),
-            emailVerifiedAt: $user->getEmailVerifiedAt(),
+            emailVerified: $emailChanged ? false : $user->isEmailVerified(),
+            emailVerifiedAt: $emailChanged ? null : $user->getEmailVerifiedAt(),
             isActive: $user->isActive(),
             createdAt: $user->getCreatedAt(),
             updatedAt: $user->getUpdatedAt(),
@@ -67,6 +93,14 @@ class UserController
         );
 
         $result = $this->userRepository->update($updatedUser);
+
+        if ($emailChanged) {
+            try {
+                $this->sendVerificationEmail($result);
+            } catch (\Throwable $e) {
+                error_log('Failed to send verification email after profile update: ' . $e->getMessage());
+            }
+        }
 
         return JsonResponse::success(new Response(), $result->toArray());
     }
@@ -111,5 +145,10 @@ class UserController
         }
 
         return JsonResponse::success(new Response(), $user->toArray());
+    }
+    private function sendVerificationEmail(User $user): void
+    {
+        $token = $this->jwtService->generateEmailVerificationToken($user->getId(), $user->getEmail());
+        $this->mailService->sendEmailVerification($user->getEmail(), $token, $user->getFullName());
     }
 }

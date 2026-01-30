@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Presentation\Controllers;
 
 use App\Application\Video\VideoDownloadService;
+use App\Infrastructure\Http\DownloadServiceException;
 use App\Shared\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -26,7 +27,20 @@ class VideoDownloadController
 
         try {
             $manifest = $this->downloads->getManifest($videoId);
+        } catch (DownloadServiceException $exception) {
+            $this->logDownloadFailure($videoId, $exception);
+            return JsonResponse::error(
+                $response,
+                'DOWNLOAD_SERVICE_ERROR',
+                'Download service failed',
+                [
+                    'message' => $exception->getMessage(),
+                    'status_code' => $exception->getStatusCode(),
+                ],
+                502
+            );
         } catch (\RuntimeException $exception) {
+            $this->logDownloadFailure($videoId, $exception);
             return JsonResponse::error(
                 $response,
                 'DOWNLOAD_SERVICE_ERROR',
@@ -41,5 +55,15 @@ class VideoDownloadController
         }
 
         return JsonResponse::success($response, $manifest);
+    }
+
+    private function logDownloadFailure(string $videoId, \Throwable $exception): void
+    {
+        $context = json_encode([
+            'video_id' => $videoId,
+            'error' => $exception->getMessage(),
+            'type' => get_class($exception),
+        ]);
+        error_log('[Download] ' . $context);
     }
 }

@@ -27,7 +27,7 @@ class DownloadServiceClient
     }
 
     /**
-     * @throws \RuntimeException
+     * @throws DownloadServiceException
      */
     public function fetchManifest(string $videoId, string $sourceRef, ?array $tiers = null, bool $audioOnly = true): array
     {
@@ -47,7 +47,7 @@ class DownloadServiceClient
                 'json' => $payload,
             ]);
         } catch (GuzzleException $exception) {
-            throw new \RuntimeException('Download service is unreachable', 0, $exception);
+            throw DownloadServiceException::networkError($exception->getMessage(), $exception);
         }
 
         $status = $response->getStatusCode();
@@ -55,12 +55,14 @@ class DownloadServiceClient
         $decoded = json_decode($body, true);
 
         if ($status >= 400) {
-            $message = is_array($decoded) ? ($decoded['message'] ?? 'Download service error') : 'Download service error';
-            throw new \RuntimeException($message);
+            $message = is_array($decoded)
+                ? ($decoded['error']['message'] ?? $decoded['message'] ?? 'Download service error')
+                : 'Download service error';
+            throw DownloadServiceException::httpError($message, $status, $body, $decoded);
         }
 
         if (!is_array($decoded)) {
-            throw new \RuntimeException('Invalid response from download service');
+            throw DownloadServiceException::invalidPayload($body);
         }
 
         return $decoded;

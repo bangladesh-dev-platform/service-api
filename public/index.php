@@ -6,6 +6,7 @@ use App\Application\Middleware\CorsMiddleware;
 use App\Application\Middleware\JwtAuthMiddleware;
 use App\Application\Middleware\RequireRoleMiddleware;
 use App\Application\Video\VideoCatalogService;
+use App\Application\Video\VideoDownloadService;
 use App\Application\Video\VideoEngagementService;
 use App\Application\Video\CommentService;
 use App\Domain\Auth\JwtService;
@@ -26,9 +27,11 @@ use App\Infrastructure\Repositories\Video\PgVideoBookmarkRepository;
 use App\Infrastructure\Repositories\Video\PgVideoHistoryRepository;
 use App\Infrastructure\Repositories\Video\PgVideoRepository;
 use App\Infrastructure\Repositories\Video\PgCommentRepository;
+use App\Infrastructure\Http\DownloadServiceClient;
 use App\Infrastructure\Mail\SmtpMailService;
 use App\Presentation\Controllers\AuthController;
 use App\Presentation\Controllers\VideoCatalogController;
+use App\Presentation\Controllers\VideoDownloadController;
 use App\Presentation\Controllers\VideoEngagementController;
 use App\Presentation\Controllers\VideoCommentController;
 use App\Presentation\Controllers\UserController;
@@ -50,6 +53,7 @@ $dotenv->load();
 $jwtConfig = require __DIR__ . '/../config/jwt.php';
 $appConfig = require __DIR__ . '/../config/app.php';
 $mailConfig = require __DIR__ . '/../config/mail.php';
+$downloadConfig = require __DIR__ . '/../config/downloads.php';
 
 // Create container
 $container = new Container();
@@ -59,6 +63,7 @@ AppFactory::setContainer($container);
 $container->set('jwt_config', $jwtConfig);
 $container->set('app_config', $appConfig);
 $container->set('mail_config', $mailConfig);
+$container->set('download_config', $downloadConfig);
 
 $container->set(PDO::class, function() {
     return Connection::getInstance();
@@ -132,6 +137,10 @@ $container->set(MailService::class, function(ContainerInterface $c) {
     );
 });
 
+$container->set(DownloadServiceClient::class, function(ContainerInterface $c) {
+    return new DownloadServiceClient($c->get('download_config'));
+});
+
 $container->set(AuthController::class, function(ContainerInterface $c) {
     return new AuthController(
         $c->get(UserRepository::class),
@@ -155,6 +164,20 @@ $container->set(UserController::class, function(ContainerInterface $c) {
 $container->set(VideoCatalogController::class, function(ContainerInterface $c) {
     return new VideoCatalogController(
         $c->get(VideoCatalogService::class)
+    );
+});
+
+$container->set(VideoDownloadService::class, function(ContainerInterface $c) {
+    return new VideoDownloadService(
+        $c->get(VideoRepository::class),
+        $c->get(DownloadServiceClient::class),
+        $c->get('download_config')
+    );
+});
+
+$container->set(VideoDownloadController::class, function(ContainerInterface $c) {
+    return new VideoDownloadController(
+        $c->get(VideoDownloadService::class)
     );
 });
 
@@ -293,6 +316,9 @@ $app->group('/api/v1', function ($app) use ($container) {
             })->add(new JwtAuthMiddleware($container->get(JwtService::class)));
 
             $app->delete('/comments/{commentId}', [VideoCommentController::class, 'delete'])
+                ->add(new JwtAuthMiddleware($container->get(JwtService::class)));
+
+            $app->get('/{id}/downloads', [VideoDownloadController::class, 'manifest'])
                 ->add(new JwtAuthMiddleware($container->get(JwtService::class)));
 
             $app->get('/{id}', [VideoCatalogController::class, 'show']);

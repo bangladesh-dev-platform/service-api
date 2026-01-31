@@ -35,6 +35,12 @@ use App\Presentation\Controllers\VideoDownloadController;
 use App\Presentation\Controllers\VideoEngagementController;
 use App\Presentation\Controllers\VideoCommentController;
 use App\Presentation\Controllers\UserController;
+use App\Presentation\Controllers\Portal\PortalController;
+use App\Application\Portal\PortalService;
+use App\Infrastructure\ExternalApi\OpenMeteoClient;
+use App\Infrastructure\ExternalApi\ExchangeRateClient;
+use App\Infrastructure\ExternalApi\RssFeedClient;
+use App\Infrastructure\Cache\FileCache;
 use App\Shared\Response\JsonResponse;
 use DI\Container;
 use Dotenv\Dotenv;
@@ -193,6 +199,38 @@ $container->set(VideoCommentController::class, function(ContainerInterface $c) {
     );
 });
 
+// Portal services with caching
+$container->set(FileCache::class, function() {
+    return new FileCache(sys_get_temp_dir() . '/bdp_cache', 300);
+});
+
+$container->set(OpenMeteoClient::class, function() {
+    return new OpenMeteoClient(10);
+});
+
+$container->set(ExchangeRateClient::class, function() {
+    return new ExchangeRateClient(10, sys_get_temp_dir());
+});
+
+$container->set(RssFeedClient::class, function(ContainerInterface $c) {
+    return new RssFeedClient();
+});
+
+$container->set(PortalService::class, function(ContainerInterface $c) {
+    return new PortalService(
+        $c->get(OpenMeteoClient::class),
+        $c->get(ExchangeRateClient::class),
+        $c->get(RssFeedClient::class),
+        $c->get(FileCache::class)
+    );
+});
+
+$container->set(PortalController::class, function(ContainerInterface $c) {
+    return new PortalController(
+        $c->get(PortalService::class)
+    );
+});
+
 // Create Slim app
 $app = AppFactory::create();
 $app->addRoutingMiddleware();
@@ -323,6 +361,39 @@ $app->group('/api/v1', function ($app) use ($container) {
 
             $app->get('/{id}', [VideoCatalogController::class, 'show']);
         });
+
+    // Portal routes (public, no auth required)
+    $app->group('/portal', function ($app) {
+        // Weather endpoints
+        $app->get('/weather', [PortalController::class, 'weather']);
+        $app->get('/weather/locations', [PortalController::class, 'weatherLocations']);
+        $app->get('/weather/divisions', [PortalController::class, 'weatherDivisions']);
+        $app->get('/weather/bulk', [PortalController::class, 'weatherBulk']);
+        
+        // Other endpoints
+        $app->get('/currency', [PortalController::class, 'currency']);
+        $app->get('/news', [PortalController::class, 'news']);
+        $app->get('/radio', [PortalController::class, 'radio']);
+        $app->get('/jobs', [PortalController::class, 'jobs']);
+        $app->get('/notices', [PortalController::class, 'notices']);
+        $app->get('/education', [PortalController::class, 'education']);
+        $app->get('/market', [PortalController::class, 'market']);
+        $app->get('/districts', [PortalController::class, 'districts']);
+        
+        // New widget endpoints
+        $app->get('/prayer', [PortalController::class, 'prayer']);
+        $app->get('/cricket', [PortalController::class, 'cricket']);
+        $app->get('/commodities', [PortalController::class, 'commodities']);
+        $app->get('/emergency', [PortalController::class, 'emergency']);
+        $app->get('/holidays', [PortalController::class, 'holidays']);
+        
+        // Search & AI endpoints
+        $app->get('/search', [PortalController::class, 'search']);
+        $app->post('/ai/chat', [PortalController::class, 'aiChat']);
+        $app->get('/ai/limit', [PortalController::class, 'aiRateLimit']);
+        
+        $app->get('/all', [PortalController::class, 'all']);
+    });
 
 });
 

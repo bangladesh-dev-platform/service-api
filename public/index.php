@@ -36,11 +36,14 @@ use App\Presentation\Controllers\VideoEngagementController;
 use App\Presentation\Controllers\VideoCommentController;
 use App\Presentation\Controllers\UserController;
 use App\Presentation\Controllers\Portal\PortalController;
+use App\Presentation\Controllers\VoteController;
 use App\Application\Portal\PortalService;
+use App\Application\Vote\VoteService;
 use App\Infrastructure\ExternalApi\OpenMeteoClient;
 use App\Infrastructure\ExternalApi\ExchangeRateClient;
 use App\Infrastructure\ExternalApi\RssFeedClient;
 use App\Infrastructure\Cache\FileCache;
+use App\Infrastructure\Repositories\Vote\PgVoteRepository;
 use App\Shared\Response\JsonResponse;
 use DI\Container;
 use Dotenv\Dotenv;
@@ -117,6 +120,10 @@ $container->set(CommentRepository::class, function(ContainerInterface $c) {
     return new PgCommentRepository($c->get(PDO::class));
 });
 
+$container->set(PgVoteRepository::class, function(ContainerInterface $c) {
+    return new PgVoteRepository($c->get(PDO::class));
+});
+
 $container->set(VideoCatalogService::class, function(ContainerInterface $c) {
     return new VideoCatalogService($c->get(VideoRepository::class));
 });
@@ -134,6 +141,10 @@ $container->set(CommentService::class, function(ContainerInterface $c) {
         $c->get(CommentRepository::class),
         $c->get(VideoRepository::class)
     );
+});
+
+$container->set(VoteService::class, function(ContainerInterface $c) {
+    return new VoteService($c->get(PgVoteRepository::class));
 });
 
 $container->set(MailService::class, function(ContainerInterface $c) {
@@ -196,6 +207,12 @@ $container->set(VideoEngagementController::class, function(ContainerInterface $c
 $container->set(VideoCommentController::class, function(ContainerInterface $c) {
     return new VideoCommentController(
         $c->get(CommentService::class)
+    );
+});
+
+$container->set(VoteController::class, function(ContainerInterface $c) {
+    return new VoteController(
+        $c->get(VoteService::class)
     );
 });
 
@@ -393,6 +410,18 @@ $app->group('/api/v1', function ($app) use ($container) {
         $app->get('/ai/limit', [PortalController::class, 'aiRateLimit']);
         
         $app->get('/all', [PortalController::class, 'all']);
+    });
+
+    // Vote archive routes (public, no auth required)
+    $app->group('/vote', function ($app) {
+        $app->get('/overview', [VoteController::class, 'overview']);
+        $app->get('/elections', [VoteController::class, 'elections']);
+        $app->get('/parties', [VoteController::class, 'parties']);
+        $app->get('/regions', [VoteController::class, 'regions']);
+        $app->get('/timeline', [VoteController::class, 'timeline']);
+        $app->get('/candidates', [VoteController::class, 'candidates']);
+        $app->get('/resources', [VoteController::class, 'resources']);
+        $app->get('/methodology', [VoteController::class, 'methodology']);
     });
 
 });

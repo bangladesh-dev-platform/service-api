@@ -20,6 +20,7 @@ services:
   nginx:
     image: nginx:stable-alpine
     container_name: service-api-nginx
+    restart: unless-stopped
     depends_on:
       - php-fpm
     ports:
